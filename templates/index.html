@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Downloader de Vídeos</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+        input[type=text] { width: 100%; padding: 10px; font-size: 1.1em; }
+        button { padding: 10px 20px; font-size: 1.1em; margin-top: 10px; }
+        iframe { width: 100%; height: 315px; margin-top: 20px; }
+        .error { color: red; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Downloader de Vídeos</h1>
+    <form method="POST">
+        <label for="video_url">Cole o link do vídeo:</label>
+        <input type="text" id="video_url" name="video_url" value="{{ video_url or '' }}" placeholder="Ex: https://www.youtube.com/watch?v=abc123" required />
+        <button type="submit">Baixar Vídeo</button>
+    </form>
+    {% if error %}
+    <p class="error">{{ error }}</p>
+    {% endif %}
+    
+    {% if video_url and 'youtube.com' in video_url %}
+    <h2>Pré-visualização:</h2>
+    <iframe src="https://www.youtube.com/embed/{{ video_url.split('v=')[-1].split('&')[0] }}" frameborder="0" allowfullscreen></iframe>
+    {% endif %}
+</body>
+</html>
