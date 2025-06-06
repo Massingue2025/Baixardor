@@ -1,5 +1,5 @@
 Flask==2.3.2
-yt-dlp==2025.05.19
+yt-dlp
 playwright==1.42.0
 requests==2.31.0
 
