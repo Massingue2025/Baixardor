@@ -5,17 +5,22 @@ import tempfile
 import asyncio
 import uuid
 from playwright.async_api import async_playwright
+import requests
 
 app = Flask(__name__)
 download_cache = {}  # {id: file path}
 
 def baixar_com_yt_dlp(url):
     tmp_dir = tempfile.mkdtemp()
+    output_path = os.path.join(tmp_dir, 'video.%(ext)s')
+
     ydl_opts = {
         'format': 'best',
-        'outtmpl': os.path.join(tmp_dir, 'video.%(ext)s'),
+        'outtmpl': output_path,
         'noplaylist': True,
-        'quiet': True
+        'quiet': True,
+        'geo_bypass': True,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -28,21 +33,26 @@ async def extrair_link_video(url):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
-        await page.goto(url, timeout=60000)
+        await page.goto(url, timeout=90000, wait_until='networkidle')
 
-        # Verifica todos os elementos <video>, <source> e links de vídeo comuns no JS ou HTML
+        # Espera elementos de vídeo aparecerem
+        await page.wait_for_timeout(5000)
+
         video_urls = set()
 
-        # 1. Elementos <video> e <source>
-        elements = await page.query_selector_all("video, source")
-        for el in elements:
-            src = await el.get_attribute("src")
-            if src and src.startswith("http"):
-                video_urls.add(src)
+        # Coleta de <video> e <source>
+        for tag in ['video', 'source']:
+            elements = await page.query_selector_all(tag)
+            for el in elements:
+                src = await el.get_attribute('src')
+                if src and src.startswith("http"):
+                    video_urls.add(src)
 
-        # 2. Vasculha JS ou HTML por links de vídeo (mp4, m3u8, etc.)
+        # Vasculha o HTML da página
         html = await page.content()
-        for ext in [".mp4", ".m3u8", ".webm"]:
+        formatos = ['.mp4', '.m3u8', '.webm', '.mov', '.flv', '.ts', '.ogg']
+
+        for ext in formatos:
             start = 0
             while True:
                 idx = html.find(ext, start)
@@ -70,22 +80,21 @@ def index():
             error = "Por favor cole um link de vídeo."
         else:
             try:
-                # Tenta com yt-dlp
                 file_path = baixar_com_yt_dlp(video_url)
                 download_id = str(uuid.uuid4())
                 download_cache[download_id] = file_path
             except Exception as e_dl:
+                print("Erro yt-dlp:", str(e_dl))
                 try:
-                    # Se yt-dlp falhar, tenta extrair com navegador
                     links = asyncio.run(extrair_link_video(video_url))
                     if not links:
-                        error = "Não foi possível encontrar link de vídeo na página."
+                        error = "Não foi possível encontrar vídeo na página."
                     else:
-                        # Faz o download manualmente
-                        import requests
-                        video_stream = requests.get(links[0], stream=True)
+                        # Baixa primeiro link detectado
+                        link_final = links[0]
+                        response = requests.get(link_final, stream=True)
                         tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-                        for chunk in video_stream.iter_content(chunk_size=8192):
+                        for chunk in response.iter_content(chunk_size=8192):
                             if chunk:
                                 tmp_file.write(chunk)
                         tmp_file.close()
@@ -93,7 +102,8 @@ def index():
                         download_id = str(uuid.uuid4())
                         download_cache[download_id] = tmp_file.name
                 except Exception as e_browser:
-                    error = f"Falha ao baixar vídeo com navegador: {str(e_browser)}"
+                    print("Erro navegador:", str(e_browser))
+                    error = "Falha ao baixar com navegador invisível."
 
     return render_template('index.html', error=error, download_id=download_id)
 
@@ -102,7 +112,7 @@ def download_file(download_id):
     file_path = download_cache.get(download_id)
     if file_path and os.path.exists(file_path):
         return send_file(file_path, as_attachment=True)
-    return "Arquivo não encontrado ou expirado.", 404
+    return "Arquivo expirado ou não encontrado.", 404
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)
