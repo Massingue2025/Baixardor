@@ -1,80 +1,68 @@
-from flask import Flask, request, jsonify
-import subprocess
+from flask import Flask, request, render_template, send_file
+import yt_dlp
 import os
+import tempfile
+import asyncio
+from playwright.async_api import async_playwright
+import requests
 
 app = Flask(__name__)
 
-@app.route('/')
+async def extract_video_link_with_playwright(url: str):
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        await page.goto(url, timeout=60000)
+
+        # Tenta pegar src de <video> ou <source>
+        video_src = await page.eval_on_selector('video', 'el => el.currentSrc || el.src').catch(lambda _: None)
+        if not video_src:
+            video_src = await page.eval_on_selector('source', 'el => el.src').catch(lambda _: None)
+
+        await browser.close()
+        return video_src
+
+@app.route('/', methods=['GET', 'POST'])
 def index():
-    return "API Online"
+    video_url = None
+    error = None
+    if request.method == 'POST':
+        video_url = request.form.get('video_url')
+        if not video_url:
+            error = "Por favor, cole um link de vídeo."
+        else:
+            try:
+                # Tenta baixar com yt-dlp
+                tmp_dir = tempfile.mkdtemp()
+                ydl_opts = {
+                    'format': 'best',
+                    'outtmpl': os.path.join(tmp_dir, 'video.%(ext)s'),
+                    'noplaylist': True,
+                }
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(video_url, download=True)
+                    filepath = ydl.prepare_filename(info)
 
-@app.route('/analisar', methods=['POST'])
-def analisar():
-    data = request.get_json()
-    link = data['link']
-    res = data['res']
-    bitrate = data['bitrate']
-    start = data['start']
-    end = data['end']
-    tempo = int(end) - int(start)
+                return send_file(filepath, as_attachment=True, download_name=os.path.basename(filepath))
+            except Exception as e:
+                # Falhou, tenta com Playwright extrair link direto
+                try:
+                    video_src = asyncio.run(extract_video_link_with_playwright(video_url))
+                    if not video_src:
+                        error = "Não foi possível extrair link do vídeo pelo navegador."
+                    else:
+                        # Baixa vídeo direto do link extraído
+                        r = requests.get(video_src, stream=True)
+                        tmp_file = tempfile.NamedTemporaryFile(delete=False)
+                        for chunk in r.iter_content(chunk_size=8192):
+                            if chunk:
+                                tmp_file.write(chunk)
+                        tmp_file.close()
+                        return send_file(tmp_file.name, as_attachment=True, download_name="video.mp4")
+                except Exception as e2:
+                    error = f"Falha ao baixar vídeo: {str(e)} | Também falhou extração com navegador: {str(e2)}"
 
-    try:
-        ytdlp_cmd = f'yt-dlp -f best --no-playlist -g "{link}"'
-        direct_link = subprocess.check_output(ytdlp_cmd, shell=True).decode().strip()
-
-        probe_cmd = f"ffprobe -v error -show_entries format=size -of default=noprint_wrappers=1:nokey=1 \"{direct_link}\""
-        original_bytes = float(subprocess.check_output(probe_cmd, shell=True))
-        original_mb = round(original_bytes / (1024 * 1024), 2)
-
-        reduzido_bytes = int(bitrate) * 1000 / 8 * tempo
-        reduzido_mb = round(reduzido_bytes / (1024 * 1024), 2)
-
-        return jsonify(success=True, direct_link=direct_link, original=original_mb, reduzido=reduzido_mb)
-
-    except Exception as e:
-        return jsonify(success=False, error=str(e))
-
-
-@app.route('/enviar', methods=['POST'])
-def enviar():
-    data = request.get_json()
-    link = data['direct_link']
-    res = data['res']
-    bitrate = data['bitrate']
-    start = data['start']
-    end = data['end']
-    tempo = int(end) - int(start)
-
-    try:
-        ffmpeg_cmd = [
-            "ffmpeg",
-            "-ss", str(start),
-            "-i", link,
-            "-t", str(tempo),
-            "-vf", f"scale={res}",
-            "-b:v", f"{bitrate}k",
-            "-f", "mp4",
-            "-movflags", "frag_keyframe+empty_moov",
-            "pipe:1"
-        ]
-
-        curl_cmd = [
-            "curl", "-X", "POST", "https://pagarfacil.free.nf/M/receber_vídeo.php",
-            "-H", "Content-Type: video/mp4",
-            "--data-binary", "@-"
-        ]
-
-        ffmpeg = subprocess.Popen(ffmpeg_cmd, stdout=subprocess.PIPE)
-        curl = subprocess.Popen(curl_cmd, stdin=ffmpeg.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        ffmpeg.stdout.close()
-        output, error = curl.communicate()
-
-        return jsonify(success=True, message="Enviado com sucesso!")
-
-    except Exception as e:
-        return jsonify(success=False, error=str(e))
-
+    return render_template('index.html', video_url=video_url, error=error)
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host='0.0.0.0', port=5000)
