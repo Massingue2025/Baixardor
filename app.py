@@ -32,31 +32,45 @@ def baixar_com_yt_dlp(url):
 async def extrair_link_video(url):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
+        context = await browser.new_context()
+        page = await context.new_page()
         await page.goto(url, timeout=90000, wait_until='networkidle')
 
-        try:
-            await page.wait_for_function(
-                """() => {
-                    const html = document.documentElement.innerHTML;
-                    return html.includes('.mp4') || html.includes('.m3u8') || html.includes('.webm');
-                }""",
-                timeout=30000
-            )
-        except Exception as e:
-            print("Timeout esperando vídeo no HTML via JS:", e)
+        # Etapa 1: procurar iframe com src para c1z39.com
+        iframe_src = await page.evaluate("""
+            () => {
+                const iframes = Array.from(document.querySelectorAll('iframe'));
+                for (let iframe of iframes) {
+                    if (iframe.src && iframe.src.includes('c1z39.com')) {
+                        return iframe.src;
+                    }
+                }
+                return null;
+            }
+        """)
 
+        if not iframe_src:
+            await browser.close()
+            return []
+
+        # Etapa 2: abrir o conteúdo do iframe
+        iframe_page = await context.new_page()
+        await iframe_page.goto(iframe_src, timeout=90000, wait_until='networkidle')
+
+        # Etapa 3: aguarda carregamento da div vplayer
+        try:
+            await iframe_page.wait_for_selector("div#vplayer", timeout=15000)
+        except Exception as e:
+            print("Div vplayer não apareceu:", e)
+
+        await iframe_page.wait_for_timeout(5000)
+
+        # Etapa 4: captura links diretos de vídeo
+        html = await iframe_page.content()
+        formatos = ['.mp4', '.m3u8', '.webm', '.mov', '.flv', '.ts', '.ogg']
         video_urls = set()
 
-        for tag in ['video', 'source']:
-            elements = await page.query_selector_all(tag)
-            for el in elements:
-                src = await el.get_attribute('src')
-                if src and src.startswith("http"):
-                    video_urls.add(src)
-
-        html = await page.content()
-        for ext in ['.mp4', '.m3u8', '.webm', '.mov', '.flv', '.ts', '.ogg']:
+        for ext in formatos:
             start = 0
             while True:
                 idx = html.find(ext, start)
