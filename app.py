@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, send_file, url_for
+from flask import Flask, request, render_template, send_file
 import yt_dlp
 import os
 import tempfile
@@ -8,7 +8,7 @@ from playwright.async_api import async_playwright
 import requests
 
 app = Flask(__name__)
-download_cache = {}  # {id: file path}
+download_cache = {}
 
 def baixar_com_yt_dlp(url):
     tmp_dir = tempfile.mkdtemp()
@@ -35,12 +35,19 @@ async def extrair_link_video(url):
         page = await browser.new_page()
         await page.goto(url, timeout=90000, wait_until='networkidle')
 
-        # Espera elementos de vídeo aparecerem
-        await page.wait_for_timeout(5000)
+        try:
+            await page.wait_for_function(
+                """() => {
+                    const html = document.documentElement.innerHTML;
+                    return html.includes('.mp4') || html.includes('.m3u8') || html.includes('.webm');
+                }""",
+                timeout=30000
+            )
+        except Exception as e:
+            print("Timeout esperando vídeo no HTML via JS:", e)
 
         video_urls = set()
 
-        # Coleta de <video> e <source>
         for tag in ['video', 'source']:
             elements = await page.query_selector_all(tag)
             for el in elements:
@@ -48,11 +55,8 @@ async def extrair_link_video(url):
                 if src and src.startswith("http"):
                     video_urls.add(src)
 
-        # Vasculha o HTML da página
         html = await page.content()
-        formatos = ['.mp4', '.m3u8', '.webm', '.mov', '.flv', '.ts', '.ogg']
-
-        for ext in formatos:
+        for ext in ['.mp4', '.m3u8', '.webm', '.mov', '.flv', '.ts', '.ogg']:
             start = 0
             while True:
                 idx = html.find(ext, start)
@@ -90,7 +94,6 @@ def index():
                     if not links:
                         error = "Não foi possível encontrar vídeo na página."
                     else:
-                        # Baixa primeiro link detectado
                         link_final = links[0]
                         response = requests.get(link_final, stream=True)
                         tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
@@ -98,7 +101,6 @@ def index():
                             if chunk:
                                 tmp_file.write(chunk)
                         tmp_file.close()
-
                         download_id = str(uuid.uuid4())
                         download_cache[download_id] = tmp_file.name
                 except Exception as e_browser:
