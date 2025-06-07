@@ -2,30 +2,51 @@ const express = require("express");
 const multer = require("multer");
 const { spawn } = require("child_process");
 const fs = require("fs");
+const http = require("http");
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Multer salva os arquivos enviados em /tmp
-const upload = multer({ dest: "/tmp" });
+const upload = multer({ dest: "/tmp" }); // Para compatibilidade com Render
 
-// Serve arquivos estáticos da pasta public (ex: index.html)
 app.use(express.static("public"));
 
-// 🔴 Sua chave personalizada do Facebook Live
-const rtmpUrl = "rtmps://live-api-s.facebook.com:443/rtmp/FB-745433421335513-0-Ab2151bh5oex3yr_ADWG_rRV";
+// RTMP fixo no código
+const rtmpUrl = "rtmps://live-api-s.facebook.com:443/rtmp/FB-744405664771622-0-Ab09qkJ-62nytCGG2NyDIwSl";
+
+// Rota ping para manter o servidor vivo
+app.get("/ping", (req, res) => {
+  res.status(200).send("pong");
+});
+
+// Função para enviar ping a cada intervalMs (default 60 segundos)
+function startKeepAlivePing(intervalMs = 60000) {
+  console.log(`Iniciando keep-alive ping a cada ${intervalMs / 1000} segundos.`);
+
+  const intervalId = setInterval(() => {
+    http.get(`http://localhost:${PORT}/ping`, (res) => {
+      console.log(`Keep-alive ping respondido com status ${res.statusCode} em ${new Date().toISOString()}`);
+    }).on("error", (err) => {
+      console.error("Erro no keep-alive ping:", err.message);
+    });
+  }, intervalMs);
+
+  return () => {
+    clearInterval(intervalId);
+    console.log("Keep-alive ping parado.");
+  };
+}
 
 app.post("/upload", upload.single("video"), (req, res) => {
   const filePath = req.file.path;
 
-  console.log(`🔴 Iniciando transmissão ao vivo para: ${rtmpUrl}`);
+  console.log(`Transmitindo para: ${rtmpUrl}`);
 
-  // Comando FFmpeg para transmitir
   const ffmpeg = spawn("ffmpeg", [
     "-re",
-    "-stream_loop", "-1",         // Loop infinito
-    "-i", filePath,               // Caminho do vídeo
-    "-t", "2400",                 // Duração total (40 minutos)
+    "-stream_loop", "-1",      // repete infinitamente
+    "-i", filePath,
+    "-t", "2400",               // duração total de 40 minutos
     "-c:v", "libx264",
     "-preset", "veryfast",
     "-maxrate", "3000k",
@@ -36,25 +57,25 @@ app.post("/upload", upload.single("video"), (req, res) => {
     "-b:a", "160k",
     "-ar", "44100",
     "-f", "flv",
-    rtmpUrl                       // URL da live
+    rtmpUrl
   ]);
 
-  // Log de erro FFmpeg
   ffmpeg.stderr.on("data", (data) => {
     console.log(`FFmpeg: ${data}`);
   });
 
-  // Quando FFmpeg termina, limpa o arquivo temporário
+  // Inicia o ping para manter servidor vivo
+  const stopKeepAlive = startKeepAlivePing(60000); // 60 segundos
+
   ffmpeg.on("close", (code) => {
-    console.log(`⚠️ FFmpeg finalizado com código: ${code}`);
-    fs.unlink(filePath, () => {}); // Exclui vídeo temporário
+    console.log(`FFmpeg terminou com código ${code}`);
+    fs.unlink(filePath, () => {});
+    stopKeepAlive(); // para os pings
   });
 
-  // Resposta para o navegador
-  res.send("✅ Live iniciada por 40 minutos! Acesse sua transmissão no Facebook.");
+  res.send("Live iniciada por 40 minutos! Verifique sua transmissão no Facebook.");
 });
 
-// Inicia o servidor
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  console.log(`Servidor na porta ${PORT}`);
 });
