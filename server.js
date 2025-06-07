@@ -6,25 +6,23 @@ const fs = require("fs");
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-const upload = multer({ dest: "/tmp" }); // Render aceita /tmp
+const upload = multer({ dest: "/tmp" }); // Para compatibilidade com Render
 
 app.use(express.static("public"));
 
+// RTMP fixo no código
+const rtmpUrl = "rtmps://live-api-s.facebook.com:443/rtmp/FB-744405664771622-0-Ab09qkJ-62nytCGG2NyDIwSl";
+
 app.post("/upload", upload.single("video"), (req, res) => {
   const filePath = req.file.path;
-  const rtmpUrl = process.env.RTMP_URL;
-
-  if (!rtmpUrl) {
-    return res.status(500).send("RTMP_URL não está definida.");
-  }
 
   console.log(`Transmitindo para: ${rtmpUrl}`);
 
-  // FFmpeg com looping infinito (-stream_loop -1) e limitando tempo total (-t 2400 = 40 min)
   const ffmpeg = spawn("ffmpeg", [
     "-re",
-    "-stream_loop", "-1",
+    "-stream_loop", "-1",      // repete infinitamente
     "-i", filePath,
+    "-t", "2400",               // duração total de 40 minutos
     "-c:v", "libx264",
     "-preset", "veryfast",
     "-maxrate", "3000k",
@@ -34,7 +32,6 @@ app.post("/upload", upload.single("video"), (req, res) => {
     "-c:a", "aac",
     "-b:a", "160k",
     "-ar", "44100",
-    "-t", "2400",        // 40 minutos em segundos
     "-f", "flv",
     rtmpUrl
   ]);
