@@ -20,8 +20,10 @@ app.post("/upload", upload.single("video"), (req, res) => {
 
   console.log(`Transmitindo para: ${rtmpUrl}`);
 
+  // FFmpeg com looping infinito (-stream_loop -1) e limitando tempo total (-t 2400 = 40 min)
   const ffmpeg = spawn("ffmpeg", [
     "-re",
+    "-stream_loop", "-1",
     "-i", filePath,
     "-c:v", "libx264",
     "-preset", "veryfast",
@@ -32,6 +34,7 @@ app.post("/upload", upload.single("video"), (req, res) => {
     "-c:a", "aac",
     "-b:a", "160k",
     "-ar", "44100",
+    "-t", "2400",        // 40 minutos em segundos
     "-f", "flv",
     rtmpUrl
   ]);
@@ -45,7 +48,7 @@ app.post("/upload", upload.single("video"), (req, res) => {
     fs.unlink(filePath, () => {});
   });
 
-  res.send("Live iniciada! Verifique sua transmissão no Facebook.");
+  res.send("Live iniciada por 40 minutos! Verifique sua transmissão no Facebook.");
 });
 
 app.listen(PORT, () => {
