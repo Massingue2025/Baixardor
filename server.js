@@ -12,7 +12,7 @@ const upload = multer({ dest: "/tmp" }); // Para compatibilidade com Render
 app.use(express.static("public"));
 
 // RTMP fixo no código
-const rtmpUrl = "rtmps://live-api-s.facebook.com:443/rtmp/FB-744405664771622-0-Ab09qkJ-62nytCGG2NyDIwSl";
+const rtmpUrl = "rtmps://live-api-s.facebook.com:443/rtmp/FB-745433421335513-0-Ab2151bh5oex3yr_ADWG_rRV",
 
 // Rota ping para manter o servidor vivo
 app.get("/ping", (req, res) => {
