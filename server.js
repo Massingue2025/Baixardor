@@ -6,23 +6,26 @@ const fs = require("fs");
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-const upload = multer({ dest: "/tmp" }); // Para compatibilidade com Render
+// Multer salva os arquivos enviados em /tmp
+const upload = multer({ dest: "/tmp" });
 
+// Serve arquivos estáticos da pasta public (ex: index.html)
 app.use(express.static("public"));
 
-// RTMP fixo no código
-const rtmpUrl = "rtmps://live-api-s.facebook.com:443/rtmp/FB-744405664771622-0-Ab09qkJ-62nytCGG2NyDIwSl";
+// 🔴 Sua chave personalizada do Facebook Live
+const rtmpUrl = "rtmps://live-api-s.facebook.com:443/rtmp/FB-745433421335513-0-Ab2151bh5oex3yr_ADWG_rRV";
 
 app.post("/upload", upload.single("video"), (req, res) => {
   const filePath = req.file.path;
 
-  console.log(`Transmitindo para: ${rtmpUrl}`);
+  console.log(`🔴 Iniciando transmissão ao vivo para: ${rtmpUrl}`);
 
+  // Comando FFmpeg para transmitir
   const ffmpeg = spawn("ffmpeg", [
     "-re",
-    "-stream_loop", "-1",      // repete infinitamente
-    "-i", filePath,
-    "-t", "2400",               // duração total de 40 minutos
+    "-stream_loop", "-1",         // Loop infinito
+    "-i", filePath,               // Caminho do vídeo
+    "-t", "2400",                 // Duração total (40 minutos)
     "-c:v", "libx264",
     "-preset", "veryfast",
     "-maxrate", "3000k",
@@ -33,21 +36,25 @@ app.post("/upload", upload.single("video"), (req, res) => {
     "-b:a", "160k",
     "-ar", "44100",
     "-f", "flv",
-    rtmpUrl
+    rtmpUrl                       // URL da live
   ]);
 
+  // Log de erro FFmpeg
   ffmpeg.stderr.on("data", (data) => {
     console.log(`FFmpeg: ${data}`);
   });
 
+  // Quando FFmpeg termina, limpa o arquivo temporário
   ffmpeg.on("close", (code) => {
-    console.log(`FFmpeg terminou com código ${code}`);
-    fs.unlink(filePath, () => {});
+    console.log(`⚠️ FFmpeg finalizado com código: ${code}`);
+    fs.unlink(filePath, () => {}); // Exclui vídeo temporário
   });
 
-  res.send("Live iniciada por 40 minutos! Verifique sua transmissão no Facebook.");
+  // Resposta para o navegador
+  res.send("✅ Live iniciada por 40 minutos! Acesse sua transmissão no Facebook.");
 });
 
+// Inicia o servidor
 app.listen(PORT, () => {
-  console.log(`Servidor na porta ${PORT}`);
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
