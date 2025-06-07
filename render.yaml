@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: fake-live-facebook
+    env: node
+    plan: free
+    region: oregon
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: RTMP_URL
+        value: rtmps://live-api-s.facebook.com:443/rtmp/FB-744405664771622-0-Ab09qkJ-62nytCGG2NyDIwSl
+      - key: PORT
+        value: 10000
