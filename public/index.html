@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Simular Live no Facebook</title>
+</head>
+<body>
+  <h2>Enviar Vídeo como Live no Facebook</h2>
+  <form id="uploadForm" enctype="multipart/form-data">
+    <input type="file" name="video" accept="video/*" required />
+    <button type="submit">Iniciar Live</button>
+  </form>
+  <p id="status"></p>
+
+  <script>
+    document.getElementById("uploadForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      document.getElementById("status").innerText = "Enviando vídeo...";
+
+      const response = await fetch("/upload", {
+        method: "POST",
+        body: formData
+      });
+
+      const text = await response.text();
+      document.getElementById("status").innerText = text;
+    });
+  </script>
+</body>
+</html>
