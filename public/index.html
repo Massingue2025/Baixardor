@@ -1,21 +1,108 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt">
 <head>
-  <title>Fake Live Facebook</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live com Vídeo Gravado</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f4f4f4;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    form {
+      background: white;
+      padding: 20px;
+      max-width: 500px;
+      margin: auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      border-radius: 8px;
+    }
+
+    input, textarea, button {
+      width: 100%;
+      margin: 10px 0;
+      padding: 10px;
+      font-size: 1rem;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+
+    button {
+      background: #1877f2;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #0e62c7;
+    }
+
+    #log {
+      max-width: 500px;
+      margin: 20px auto;
+      padding: 10px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+    }
+
+    @media (max-width: 600px) {
+      form, #log {
+        padding: 15px;
+      }
+
+      input, textarea, button {
+        font-size: 1em;
+      }
+    }
+  </style>
 </head>
 <body>
-  <h2>Enviar Vídeo para Live no Facebook</h2>
-  <form action="/upload" method="post" enctype="multipart/form-data">
-    <label>Título:</label><br>
-    <input type="text" name="titulo" required><br><br>
-
-    <label>Descrição:</label><br>
-    <textarea name="descricao" required></textarea><br><br>
-
-    <label>Vídeo:</label><br>
-    <input type="file" name="video" accept="video/*" required><br><br>
-
-    <button type="submit">Iniciar Live</button>
+  <h2>Transmitir Vídeo Gravado para o Facebook</h2>
+  <form id="liveForm">
+    <input type="text" name="title" placeholder="Título" required>
+    <textarea name="description" placeholder="Descrição" required></textarea>
+    <input type="text" name="streamKey" placeholder="Chave da Transmissão" required>
+    <input type="file" name="video" accept="video/*" required>
+    <button type="submit">Transmitir Agora</button>
   </form>
+
+  <div id="log"></div>
+
+  <script>
+    const form = document.getElementById('liveForm');
+    const log = document.getElementById('log');
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      log.innerHTML = "🔄 Enviando dados...";
+
+      const formData = new FormData(form);
+      const response = await fetch('/start', {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+      log.innerHTML = "";
+
+      if (result.success) {
+        result.steps.forEach(s => {
+          log.innerHTML += `<p>✅ ${s.step}</p>`;
+        });
+      } else {
+        log.innerHTML = `<p>❌ Erro em ${result.step}: ${result.error}</p>`;
+      }
+    };
+  </script>
 </body>
 </html>
