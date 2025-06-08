@@ -1,29 +1,105 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR" >
 <head>
-  <title>Simular Live no Facebook</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fake Live Facebook</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 500px;
+      margin: 30px auto;
+      padding: 20px;
+      background: #f4f4f4;
+      border-radius: 8px;
+    }
+    h1 {
+      text-align: center;
+      color: #4267B2;
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    input[type="text"], textarea {
+      padding: 10px;
+      font-size: 1rem;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      resize: vertical;
+    }
+    input[type="file"] {
+      padding: 5px 0;
+    }
+    button {
+      background-color: #4267B2;
+      border: none;
+      color: white;
+      font-size: 1rem;
+      padding: 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #365899;
+    }
+    .msg {
+      margin-top: 15px;
+      font-weight: bold;
+      color: green;
+    }
+    @media (max-width: 600px) {
+      body {
+        margin: 15px;
+        padding: 15px;
+      }
+    }
+  </style>
 </head>
 <body>
-  <h2>Enviar Vídeo como Live no Facebook</h2>
-  <form id="uploadForm" enctype="multipart/form-data">
-    <input type="file" name="video" accept="video/*" required />
+  <h1>Enviar Vídeo para Live Facebook</h1>
+  <form id="uploadForm" enctype="multipart/form-data" method="POST" action="/upload">
+    <label for="video">Selecione o vídeo:</label>
+    <input type="file" id="video" name="video" accept="video/*" required />
+
+    <label for="titulo">Título da transmissão:</label>
+    <input type="text" id="titulo" name="titulo" placeholder="Digite o título da live" />
+
+    <label for="descricao">Descrição da transmissão:</label>
+    <textarea id="descricao" name="descricao" rows="4" placeholder="Digite a descrição da live"></textarea>
+
     <button type="submit">Iniciar Live</button>
   </form>
-  <p id="status"></p>
+
+  <p class="msg" id="message"></p>
 
   <script>
-    document.getElementById("uploadForm").addEventListener("submit", async function (e) {
+    const form = document.getElementById("uploadForm");
+    const message = document.getElementById("message");
+
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const formData = new FormData(this);
-      document.getElementById("status").innerText = "Enviando vídeo...";
 
-      const response = await fetch("/upload", {
-        method: "POST",
-        body: formData
-      });
+      const formData = new FormData(form);
+      message.textContent = "Enviando vídeo e iniciando live...";
 
-      const text = await response.text();
-      document.getElementById("status").innerText = text;
+      try {
+        const res = await fetch("/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (res.ok) {
+          const text = await res.text();
+          message.textContent = text;
+        } else {
+          message.textContent = `Erro: ${res.statusText}`;
+        }
+      } catch (err) {
+        message.textContent = "Erro ao enviar vídeo.";
+      }
     });
   </script>
 </body>
