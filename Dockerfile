@@ -1,36 +1,37 @@
-FROM node:18
+# Usa uma imagem Node.js oficial com suporte a ffmpeg e Chromium
+FROM node:20-slim
 
-# Instalar dependências obrigatórias para Chromium headless
+# Instala o FFmpeg e dependências do Puppeteer
 RUN apt-get update && apt-get install -y \
-    wget \
-    ca-certificates \
-    fonts-liberation \
-    libappindicator3-1 \
-    libasound2 \
-    libatk-bridge2.0-0 \
-    libatk1.0-0 \
-    libcups2 \
-    libdbus-1-3 \
-    libgdk-pixbuf2.0-0 \
-    libnspr4 \
-    libnss3 \
-    libnss3-dev \
-    libx11-xcb1 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxrandr2 \
-    xdg-utils \
-    libgbm1 \
-    libdrm2 \
-    libu2f-udev \
-    libxshmfence1 \
-    --no-install-recommends \
- && rm -rf /var/lib/apt/lists/*
+  ffmpeg \
+  wget \
+  ca-certificates \
+  fonts-liberation \
+  libappindicator3-1 \
+  libasound2 \
+  libatk-bridge2.0-0 \
+  libatk1.0-0 \
+  libcups2 \
+  libdbus-1-3 \
+  libxcomposite1 \
+  libxdamage1 \
+  libxrandr2 \
+  xdg-utils \
+  --no-install-recommends && \
+  apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Cria diretório da app
 WORKDIR /app
+
+# Copia arquivos do projeto
+COPY package*.json ./
+RUN npm install
 
 COPY . .
 
-RUN npm install
+# Expondo porta
+EXPOSE 3000
 
-CMD ["npm", "start"]
+# Início do servidor
+CMD ["node", "server.js"]
+
