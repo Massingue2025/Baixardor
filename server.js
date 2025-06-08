@@ -13,7 +13,7 @@ const upload = multer({ dest: "/tmp" });
 app.use(express.static("public"));
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ Nova chave RTMP da transmissão
+// ✅ Chave RTMP atualizada
 const rtmpUrl = "rtmps://live-api-s.facebook.com:443/rtmp/FB-1249889596922361-0-Ab3Dh9P1KomBRVPaQdhiGfC9";
 
 app.get("/ping", (req, res) => res.status(200).send("pong"));
@@ -29,20 +29,12 @@ app.post("/upload", upload.single("video"), async (req, res) => {
   const filePath = req.file.path;
   const { titulo, descricao } = req.body;
 
-  // Inicia navegador invisível e configura live
-  try {
-    await launchFacebookLive(titulo, descricao);
-  } catch (e) {
-    console.error("Erro no Puppeteer:", e);
-    return res.status(500).send("Erro ao configurar a live.");
-  }
-
-  console.log(`Transmitindo para: ${rtmpUrl}`);
+  console.log(`📡 Iniciando transmissão para: ${rtmpUrl}`);
   const ffmpeg = spawn("ffmpeg", [
     "-re",
     "-stream_loop", "-1",
     "-i", filePath,
-    "-t", "2400", // até 40 minutos
+    "-t", "2400",
     "-c:v", "libx264",
     "-preset", "veryfast",
     "-maxrate", "3000k",
@@ -63,10 +55,23 @@ app.post("/upload", upload.single("video"), async (req, res) => {
   ffmpeg.on("close", (code) => {
     fs.unlink(filePath, () => {});
     stopKeepAlive();
-    console.log(`FFmpeg finalizado com código ${code}`);
+    console.log(`🔚 FFmpeg finalizado com código ${code}`);
   });
 
-  res.send("Live iniciada com sucesso no Facebook!");
+  // ✅ Aguarda 10 segundos para garantir que sinal chegou ao Facebook
+  console.log("⏳ Aguardando 10 segundos para o Facebook detectar o vídeo...");
+  await new Promise((resolve) => setTimeout(resolve, 10000));
+
+  // ✅ Agora inicia o navegador e configura a live
+  try {
+    console.log("🧭 Iniciando Puppeteer para configurar a live...");
+    await launchFacebookLive(titulo, descricao);
+    console.log("✅ Live iniciada com sucesso no Facebook!");
+    res.send("Live iniciada com sucesso no Facebook!");
+  } catch (e) {
+    console.error("❌ Erro ao configurar a live:", e);
+    res.status(500).send("Erro ao configurar a live.");
+  }
 });
 
-app.listen(PORT, () => console.log(`Servidor na porta ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Servidor rodando na porta ${PORT}`));
