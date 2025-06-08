@@ -1,13 +1,14 @@
 {
   "name": "fake-live-facebook",
   "version": "1.0.0",
-  "description": "Envia vídeo como live para Facebook",
+  "description": "Envia vídeo como live para Facebook com automação do título e descrição",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "*",
-    "multer": "*"
+    "express": "",
+    "multer": "",
+    "puppeteer": ""
   }
 }
